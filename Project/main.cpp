@@ -4,7 +4,51 @@
 #include <windows.h>
 using namespace std;
 
+typedef char* (*function)(char*, int);
 class TextEditor;
+
+class CaesarCipher {
+private:
+	function encrypt;
+	function decrypt;
+	HINSTANCE handle;
+
+	int loadLibrary() {
+
+		handle = LoadLibrary(TEXT("Cipher.dll")); if
+			(handle == nullptr || handle == INVALID_HANDLE_VALUE)
+		{
+			DWORD err = GetLastError();
+			return err;
+		}
+		encrypt = (function)GetProcAddress(handle, "encrypt");
+		if (encrypt == nullptr)
+		{
+			cout << "Function not found" << endl;
+			return 1;
+		}
+		decrypt = (function)GetProcAddress(handle, "decrypt");
+		if (decrypt == nullptr)
+		{
+			cout << "Function not found" << endl;
+			return 1;
+		}
+	}
+
+	int unloadLibrary() {
+		FreeLibrary(handle);
+	}
+
+public:
+
+	char* Encrypt(char* text, int key) {
+		return encrypt(text, key);
+	}
+
+	char* Decrypt(char* text, int key) {
+		return decrypt(text, key);
+	}
+};
 
 class Cursor {
 public:
