@@ -7,49 +7,6 @@ using namespace std;
 typedef char* (*function)(char*, int);
 class TextEditor;
 
-class CaesarCipher {
-private:
-	function encrypt;
-	function decrypt;
-	HINSTANCE handle;
-
-	int loadLibrary() {
-
-		handle = LoadLibrary(TEXT("Cipher.dll")); if
-			(handle == nullptr || handle == INVALID_HANDLE_VALUE)
-		{
-			DWORD err = GetLastError();
-			return err;
-		}
-		encrypt = (function)GetProcAddress(handle, "encrypt");
-		if (encrypt == nullptr)
-		{
-			cout << "Function not found" << endl;
-			return 1;
-		}
-		decrypt = (function)GetProcAddress(handle, "decrypt");
-		if (decrypt == nullptr)
-		{
-			cout << "Function not found" << endl;
-			return 1;
-		}
-	}
-
-	int unloadLibrary() {
-		FreeLibrary(handle);
-	}
-
-public:
-
-	char* Encrypt(char* text, int key) {
-		return encrypt(text, key);
-	}
-
-	char* Decrypt(char* text, int key) {
-		return decrypt(text, key);
-	}
-};
-
 class Cursor {
 public:
 	int row, col;
@@ -121,34 +78,34 @@ public:
 		}
 	}
 
-    void reallocate_rows(int& new_rows) {
-        char** new_text = (char**)realloc(text, new_rows * sizeof(char*));
-        if (new_text == NULL) {
-            cerr << "Failed to allocate memory";
-            return;
-        }
-        text = new_text;
-        for (int i = rows; i < new_rows; i++) {
-            text[i] = (char*)malloc(cols * sizeof(char));
-            if (text[i] == NULL) {
-                cerr << "Failed to allocate memory";
-                return;
-            }
-        }
-        rows = new_rows;
-    }
+	void reallocate_rows(int& new_rows) {
+		char** new_text = (char**)realloc(text, new_rows * sizeof(char*));
+		if (new_text == NULL) {
+			cerr << "Failed to allocate memory";
+			return;
+		}
+		text = new_text;
+		for (int i = rows; i < new_rows; i++) {
+			text[i] = (char*)malloc(cols * sizeof(char));
+			if (text[i] == NULL) {
+				cerr << "Failed to allocate memory";
+				return;
+			}
+		}
+		rows = new_rows;
+	}
 
-    void reallocate_cols(int& new_cols) {
-        for (int i = 0; i < rows; i++) {
-            char* new_row = (char*)realloc(text[i], new_cols * sizeof(char));
-            if (new_row == NULL) {
-                cerr << "Failed to allocate memory";
-                return;
-            }
-            text[i] = new_row;
-        }
-        cols = new_cols;
-    }
+	void reallocate_cols(int& new_cols) {
+		for (int i = 0; i < rows; i++) {
+			char* new_row = (char*)realloc(text[i], new_cols * sizeof(char));
+			if (new_row == NULL) {
+				cerr << "Failed to allocate memory";
+				return;
+			}
+			text[i] = new_row;
+		}
+		cols = new_cols;
+	}
 
 	void deallocate_array() {
 		if (text != nullptr) {
@@ -176,19 +133,21 @@ public:
 
 class Text_Buffer {
 public:
-	Text text_storage;
-	Cursor cursor;
+	Text* text_storage;
+	Cursor* cursor;
 	char* paste_buffer;
 
 	Text_Buffer(Text* text, Cursor* curs, char* pasted_buffer) {
-		text_storage = *text;
-		cursor = *curs;
+		text_storage = new Text(*text);
+		cursor = new Cursor(*curs);
 		paste_buffer = new char[256];
 		strcpy_s(paste_buffer, 256, pasted_buffer);
 	}
 
 	~Text_Buffer() {
 		delete[] paste_buffer;
+		delete cursor;
+		delete text_storage;
 	}
 };
 
@@ -218,8 +177,8 @@ private:
 	}
 
 	void restore_buffer(Cursor* cursor, Text_Buffer*& buf_1) {
-		*cursor = buf_1->cursor;
-		*text_storage = buf_1->text_storage;
+		cursor = new Cursor(*buf_1->cursor);
+		text_storage = new Text(*buf_1->text_storage);
 		strcpy_s(paste_buffer, 256, buf_1->paste_buffer);
 
 		delete buf_1;
@@ -282,7 +241,8 @@ public:
 			<< "14: Insert text with replacement" << endl
 			<< "15: Move cursor" << endl
 			<< "16: Clear console" << endl
-			<< "17: Command list" << endl
+			<< "17: Encryption/Decryption" << endl
+			<< "18: Command list" << endl
 			<< "0: Exit program" << endl;
 	}
 
@@ -552,12 +512,130 @@ void Cursor::MoveCursor(TextEditor* editor) {
 	Cursor::col = new_col;
 }
 
+class CaesarCipher {
+private:
+	function encrypt;
+	function decrypt;
+	HINSTANCE handle;
+
+	int _LoadLibrary() {
+
+		handle = LoadLibrary(TEXT("CaesarDLL.dll")); if
+			(handle == nullptr || handle == INVALID_HANDLE_VALUE)
+		{
+			DWORD err = GetLastError();
+			return err;
+		}
+		encrypt = (function)GetProcAddress(handle, "encrypt");
+		if (encrypt == nullptr)
+		{
+			cout << "Function not found" << endl;
+			return 1;
+		}
+		decrypt = (function)GetProcAddress(handle, "decrypt");
+		if (decrypt == nullptr)
+		{
+			cout << "Function not found" << endl;
+			return 1;
+		}
+		return 0;
+	}
+
+	void _UnloadLibrary() {
+		FreeLibrary(handle);
+		handle = nullptr;
+	}
+
+public:
+
+	void EncryptText(TextEditor* editor, int key) {
+		_LoadLibrary();
+		char** text = editor->get_text();
+		for (int i = 0; i <= editor->get_rows(); i++) {
+			text[i] = encrypt(text[i], key);
+		}
+		_UnloadLibrary();
+	}
+
+	void DecryptText(TextEditor* editor, int key) {
+		_LoadLibrary();
+		char** text = editor->get_text();
+		for (int i = 0; i <= editor->get_rows(); i++) {
+			text[i] = decrypt(text[i], key);
+		}
+		_UnloadLibrary();
+	}
+
+	void EncryptDecryptFile(function func, int key) {
+		char fileRead[32];
+		char fileWrite[32];
+		char buffer[256];
+		cout << "Enter the file name for reading: ";
+		cin >> fileRead;
+		cout << "Enter the file name for writing: ";
+		cin >> fileWrite;
+		ifstream file_R(fileRead);
+		ofstream temp_W("temp.txt");
+		if (!file_R.fail() && !temp_W.fail()) {
+			while (file_R.getline(buffer, 256)) {
+				temp_W << func(buffer, key) << endl;
+			}
+			file_R.close();
+			temp_W.close();
+		}
+		ifstream temp_R("temp.txt");
+		ofstream file_W(fileWrite);
+		if (!temp_R.fail() && !file_W.fail()) {
+			while (temp_R.getline(buffer, 256)) {
+				file_W << buffer << endl;
+			}
+			temp_R.close();
+			file_W.close();
+		}
+		remove("temp.txt");
+		_UnloadLibrary();
+	}
+
+	void GetCommand(TextEditor* editor) {
+		int command;
+		int key;
+		cout << "1. Encrypt" << endl;
+		cout << "2. Decrypt" << endl;
+		cout << "3. Encrypt file" << endl;
+		cout << "4. Decrypt file" << endl;
+		cout << "Enter command: " << endl;
+		cin >> command;
+		cout << "Enter key: " << endl;
+		cin >> key;
+		switch (command) {
+		case 1:
+			EncryptText(editor, key);
+			break;
+		case 2:
+			DecryptText(editor, key);
+			break;
+		case 3:
+			_LoadLibrary();
+			EncryptDecryptFile(encrypt, key);
+			break;
+		case 4:
+			_LoadLibrary();
+			EncryptDecryptFile(decrypt, key);
+			break;
+		default:
+			cout << "Command not found" << endl;
+			break;
+		}
+	}
+};
+
 int main() {
 	TextEditor* editor = new TextEditor();
 	Cursor* cursor = new Cursor();
+	CaesarCipher* cipher = new CaesarCipher();
 	while (true) {
 		int input;
-		cout << "Choose the command or enter 17 for commands list:" << endl;
+		cout << "Choose the command or enter 18 for commands list:" << endl;
 		cin >> input;
 		switch (input) {
 		case 1:
@@ -609,11 +687,15 @@ int main() {
 			editor->clear_console();
 			break;
 		case 17:
+			cipher->GetCommand(editor);
+			break;
+		case 18:
 			editor->print_help();
 			break;
 		case 0:
 			delete editor;
 			delete cursor;
+			delete cipher;
 			return 0;
 		default:
 			cout << "The command is not implemented" << endl;
