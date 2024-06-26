@@ -36,7 +36,7 @@ public:
 class Text {
 
 public:
-	char** text;
+	char** storage;
 	int rows;
 	int cols;
 	int total_rows;
@@ -45,49 +45,49 @@ public:
 		rows = 10;
 		cols = 128;
 		total_rows = 0;
-		allocate_array(rows, cols);
+		AllocateArray(rows, cols);
 	}
 
 	Text(const Text& other) {
 		rows = other.rows;
 		cols = other.cols;
 		total_rows = other.total_rows;
-		allocate_array(rows, cols);
+		AllocateArray(rows, cols);
 		for (int i = 0; i <= total_rows; i++) {
-			strcpy_s(text[i], cols, other.text[i]);
+			strcpy_s(storage[i], cols, other.storage[i]);
 		}
 	}
 
 	~Text() {
-		deallocate_array();
+		DeallocateArray();
 	}
 
-	void allocate_array(int& rows, int& cols) {
-		text = (char**)malloc(rows * sizeof(char*));
-		if (text == NULL) {
+	void AllocateArray(int& rows, int& cols) {
+		storage = (char**)malloc(rows * sizeof(char*));
+		if (storage == NULL) {
 			cerr << "Failed to allocate memory";
 			return;
 		}
 		for (int i = 0; i < rows; i++) {
-			text[i] = (char*)malloc(cols * sizeof(char));
-			if (text[i] == NULL) {
+			storage[i] = (char*)malloc(cols * sizeof(char));
+			if (storage[i] == NULL) {
 				cerr << "Failed to allocate memory";
 				return;
 			}
-			text[i][0] = '\0';
+			storage[i][0] = '\0';
 		}
 	}
 
-	void reallocate_rows(int& new_rows) {
-		char** new_text = (char**)realloc(text, new_rows * sizeof(char*));
+	void ReallocateRows(int& new_rows) {
+		char** new_text = (char**)realloc(storage, new_rows * sizeof(char*));
 		if (new_text == NULL) {
 			cerr << "Failed to allocate memory";
 			return;
 		}
-		text = new_text;
+		storage = new_text;
 		for (int i = rows; i < new_rows; i++) {
-			text[i] = (char*)malloc(cols * sizeof(char));
-			if (text[i] == NULL) {
+			storage[i] = (char*)malloc(cols * sizeof(char));
+			if (storage[i] == NULL) {
 				cerr << "Failed to allocate memory";
 				return;
 			}
@@ -95,39 +95,39 @@ public:
 		rows = new_rows;
 	}
 
-	void reallocate_cols(int& new_cols) {
+	void ReallocateCols(int& new_cols) {
 		for (int i = 0; i < rows; i++) {
-			char* new_row = (char*)realloc(text[i], new_cols * sizeof(char));
+			char* new_row = (char*)realloc(storage[i], new_cols * sizeof(char));
 			if (new_row == NULL) {
 				cerr << "Failed to allocate memory";
 				return;
 			}
-			text[i] = new_row;
+			storage[i] = new_row;
 		}
 		cols = new_cols;
 	}
 
-	void deallocate_array() {
-		if (text != nullptr) {
+	void DeallocateArray() {
+		if (storage != nullptr) {
 			for (int i = 0; i < rows; i++) {
-				if (text[i] != nullptr) {
-					free(text[i]);
+				if (storage[i] != nullptr) {
+					free(storage[i]);
 				}
 			}
-			free(text);
-			text = nullptr;
+			free(storage);
+			storage = nullptr;
 		}
 	}
 
-	void shift_right(int& row, int& start_index, int shift_amount) {
+	void ShiftRight(int& row, int& start_index, int shift_amount) {
 		if (start_index + shift_amount >= cols) {
 			int new_cols = cols + 128;
-			reallocate_cols(new_cols);
+			ReallocateCols(new_cols);
 		}
 		for (int i = cols; i >= start_index; i--) {
-			text[row][i + shift_amount] = text[row][i];
+			storage[row][i + shift_amount] = storage[row][i];
 		}
-		text[row][strlen(text[row]) + 1] = '\0';
+		storage[row][strlen(storage[row]) + 1] = '\0';
 	}
 };
 
@@ -153,7 +153,7 @@ public:
 
 class TextEditor {
 private:
-	Text* text_storage;
+	Text* text;
 	char* paste_buffer;
 	Text_Buffer* undo1 = nullptr;
 	Text_Buffer* undo2 = nullptr;
@@ -162,35 +162,35 @@ private:
 	Text_Buffer* redo2 = nullptr;
 	Text_Buffer* redo3 = nullptr;
 
-	void add_undo(Cursor* cursor) {
+	void _AddUndo(Cursor* cursor) {
 		if (undo3) delete undo3;
 		undo3 = undo2;
 		undo2 = undo1;
-		undo1 = new Text_Buffer(text_storage, cursor, paste_buffer);
+		undo1 = new Text_Buffer(text, cursor, paste_buffer);
 	}
 
-	void add_redo(Cursor* cursor) {
+	void _AddRedo(Cursor* cursor) {
 		if (redo3) delete redo3;
 		redo3 = redo2;
 		redo2 = redo1;
-		redo1 = new Text_Buffer(text_storage, cursor, paste_buffer);
+		redo1 = new Text_Buffer(text, cursor, paste_buffer);
 	}
 
-	void restore_buffer(Cursor* cursor, Text_Buffer*& buf_1) {
+	void _RestoreBuffer(Cursor* cursor, Text_Buffer*& buf_1) {
 		cursor = new Cursor(*buf_1->cursor);
-		text_storage = new Text(*buf_1->text_storage);
+		text = new Text(*buf_1->text_storage);
 		strcpy_s(paste_buffer, 256, buf_1->paste_buffer);
 
 		delete buf_1;
 		buf_1 = nullptr;
 	}
 
-	int get_input(Cursor* cursor, string action, int& row, int& col, int& length) {
+	int _GetInput(Cursor* cursor, string action, int& row, int& col, int& length) {
 		row = cursor->row;
 		col = cursor->col;
 		cout << "Enter the length of text to " << action << " : ";
 		cin >> length;
-		if (col + length >= strlen(text_storage->text[row])) {
+		if (col + length >= strlen(text->storage[row])) {
 			cerr << "The length is out of range" << endl;
 			return -1;
 		}
@@ -198,13 +198,13 @@ private:
 
 public:
 	TextEditor() {
-		text_storage = new Text;
+		text = new Text;
 		paste_buffer = new char[256];
 		paste_buffer[0] = '\0';
 	}
 
 	~TextEditor() {
-		delete text_storage;
+		delete text;
 		delete[] paste_buffer;
 
 		if (undo1) delete undo1;
@@ -215,15 +215,15 @@ public:
 		if (redo3) delete redo3;
 	}
 
-	char** get_text() {
-		return text_storage->text;
+	char** GetText() {
+		return text->storage;
 	}
 
-	int get_rows() {
-		return text_storage->total_rows;
+	int GetRows() {
+		return text->total_rows;
 	}
 
-	void print_help() {
+	void PrintHelp() {
 		cout << "Commands: " << endl
 			<< "1: Append text symbols to the end" << endl
 			<< "2: Start the new line" << endl
@@ -246,64 +246,64 @@ public:
 			<< "0: Exit program" << endl;
 	}
 
-	void append_text(Cursor* cursor) {
+	void AppendText(Cursor* cursor) {
 		char buffer[256];
-		cursor->_SystemMoveCursor(text_storage->total_rows, (int)strlen(text_storage->text[text_storage->total_rows]));
-		char* position = cursor->GetPosition(text_storage->text);
+		cursor->_SystemMoveCursor(text->total_rows, (int)strlen(text->storage[text->total_rows]));
+		char* position = cursor->GetPosition(text->storage);
 
 		cout << "Enter text to append: " << endl;
 		cin.ignore();
 		cin.getline(buffer, 256);
 		buffer[cin.gcount()] = '\0';
 
-		if (strlen(text_storage->text[text_storage->total_rows]) + strlen(buffer) >= text_storage->cols) {
-			int new_cols = text_storage->cols + 128;
-			text_storage->reallocate_cols(new_cols);
-			position = cursor->GetPosition(text_storage->text);
+		if (strlen(text->storage[text->total_rows]) + strlen(buffer) >= text->cols) {
+			int new_cols = text->cols + 128;
+			text->ReallocateCols(new_cols);
+			position = cursor->GetPosition(text->storage);
 			position = strstr(position, "\0");
 		}
-		add_undo(cursor);
+		_AddUndo(cursor);
 		strncat_s(position, (int)strlen(buffer) + 1, (const char*)&buffer, _TRUNCATE);
-		int total_cols = (int)strlen(text_storage->text[text_storage->total_rows]);
+		int total_cols = (int)strlen(text->storage[text->total_rows]);
 		cursor->_SystemMoveCursor(cursor->row, total_cols);
 	}
 
-	void start_newline(Cursor* cursor) {
-		add_undo(cursor);
-		char* position = cursor->GetPosition(text_storage->text);
+	void StartNewline(Cursor* cursor) {
+		_AddUndo(cursor);
+		char* position = cursor->GetPosition(text->storage);
 		*position = '\n';
 		position++;
 		*position = '\0';
-		if (cursor->row + 1 >= text_storage->rows) {
-			int new_rows = text_storage->rows + 10;
-			text_storage->reallocate_rows(new_rows);
+		if (cursor->row + 1 >= text->rows) {
+			int new_rows = text->rows + 10;
+			text->ReallocateRows(new_rows);
 		}
-		(text_storage->total_rows)++;
+		(text->total_rows)++;
 		cursor->_SystemMoveCursor(cursor->row + 1, 0);
-		*cursor->GetPosition(text_storage->text) = '\0';
+		*cursor->GetPosition(text->storage) = '\0';
 	}
 
-	void save_file() {
+	void SaveFile() {
 		char file_name[32];
 		cout << "Enter the file name for saving: ";
 		cin >> file_name;
 		ofstream file(file_name);
 		if (!file.fail()) {
-			for (int i = 0; i <= text_storage->total_rows; i++) {
-				file << text_storage->text[i];
+			for (int i = 0; i <= text->total_rows; i++) {
+				file << text->storage[i];
 			}
 			file.close();
 			cout << "Text saved successfully" << endl;
 		}
 	}
 
-	void load_file(Cursor* cursor)
+	void LoadFile(Cursor* cursor)
 	{
 		char file_name[32];
 		char ch;
 		int rows = 0;
 		cursor->_SystemMoveCursor(0, 0);
-		char* position = cursor->GetPosition(text_storage->text);
+		char* position = cursor->GetPosition(text->storage);
 		cout << "Enter the file name for loading: ";
 		cin >> file_name;
 		ifstream file(file_name);
@@ -312,10 +312,10 @@ public:
 			return;
 		}
 		while (file.get(ch)) {
-			if (strlen(text_storage->text[rows]) + 1 >= text_storage->cols) {
-				int new_cols = text_storage->cols + 128;
-				text_storage->reallocate_cols(new_cols);
-				position = cursor->GetPosition(text_storage->text);
+			if (strlen(text->storage[rows]) + 1 >= text->cols) {
+				int new_cols = text->cols + 128;
+				text->ReallocateCols(new_cols);
+				position = cursor->GetPosition(text->storage);
 			}
 			if (ch != '\n') {
 				*position = ch;
@@ -324,30 +324,30 @@ public:
 				cursor->_SystemMoveCursor(rows, cursor->col + 1);
 			}
 			else if (ch == '\n') {
-				if (text_storage->total_rows + 1 >= text_storage->rows) {
-					int new_rows = text_storage->rows + 10;
-					text_storage->reallocate_rows(new_rows);
-					position = cursor->GetPosition(text_storage->text);
+				if (text->total_rows + 1 >= text->rows) {
+					int new_rows = text->rows + 10;
+					text->ReallocateRows(new_rows);
+					position = cursor->GetPosition(text->storage);
 				}
 				cursor->_SystemMoveCursor(rows, cursor->col);
-				start_newline(cursor);
+				StartNewline(cursor);
 				rows++;
-				position = cursor->GetPosition(text_storage->text);
+				position = cursor->GetPosition(text->storage);
 			}
 		}
 		file.close();
 		cout << "Text loaded successfully" << endl;
-		cursor->_SystemMoveCursor(rows, strlen(text_storage->text[rows]));
+		cursor->_SystemMoveCursor(rows, strlen(text->storage[rows]));
 	}
 
-	void print_text() {
-		for (int i = 0; i <= text_storage->total_rows; i++) {
-			cout << text_storage->text[i];
+	void PrintText() {
+		for (int i = 0; i <= text->total_rows; i++) {
+			cout << text->storage[i];
 		}
 		cout << endl;
 	}
 
-	void insert_text(Cursor* cursor) {
+	void InsertText(Cursor* cursor) {
 		int row = cursor->row;
 		int col = cursor->col;
 		char entered_text[64];
@@ -355,14 +355,14 @@ public:
 		cin.ignore();
 		cin.getline(entered_text, 256);
 		entered_text[cin.gcount()] = '\0';
-		add_undo(cursor);
-		text_storage->shift_right(row, col, (int)strlen(entered_text));
+		_AddUndo(cursor);
+		text->ShiftRight(row, col, (int)strlen(entered_text));
 		for (int i = 0; i < (int)strlen(entered_text); i++) {
-			text_storage->text[row][col + i] = entered_text[i];
+			text->storage[row][col + i] = entered_text[i];
 		}
 	}
 
-	void search_text() {
+	void SearchText() {
 		char search_text[64];
 		char* position;
 		bool found = false;
@@ -372,10 +372,10 @@ public:
 		cin.getline(search_text, 64);
 		search_text[cin.gcount()] = '\0';
 		cout << "Text found in: ";
-		for (int i = 0; i <= text_storage->total_rows; ++i) {
-			position = text_storage->text[i];
+		for (int i = 0; i <= text->total_rows; ++i) {
+			position = text->storage[i];
 			while ((position = strstr(position, search_text)) != NULL) {
-				index = (int)(position - text_storage->text[i]);
+				index = (int)(position - text->storage[i]);
 				cout << i << " " << index << "; ";
 				position += strlen(search_text);
 				found = true;
@@ -387,66 +387,66 @@ public:
 		}
 	}
 
-	void delete_text(Cursor* cursor) {
+	void DeleteText(Cursor* cursor) {
 		int row = 0, col = 0, length = 0;
-		get_input(cursor, "delete", row, col, length);
+		_GetInput(cursor, "delete", row, col, length);
 		if (row == -1) return;
-		add_undo(cursor);
-		for (int i = col; i < strlen(text_storage->text[row]) - length; i++) {
-			text_storage->text[row][i] = text_storage->text[row][i + length];
+		_AddUndo(cursor);
+		for (int i = col; i < strlen(text->storage[row]) - length; i++) {
+			text->storage[row][i] = text->storage[row][i + length];
 		}
-		text_storage->text[row][strlen(text_storage->text[row]) - length] = '\0';
+		text->storage[row][strlen(text->storage[row]) - length] = '\0';
 		cout << "Text deleted successfully" << endl;
 	}
 
-	void cut_text(Cursor* cursor) {
+	void CutText(Cursor* cursor) {
 		int row = 0, col = 0, length = 0;
-		get_input(cursor, "cut", row, col, length);
+		_GetInput(cursor, "cut", row, col, length);
 		if (row == -1) return;
-		add_undo(cursor);
+		_AddUndo(cursor);
 		for (int i = col; i < col + length; i++) {
-			paste_buffer[i - col] = text_storage->text[row][i];
+			paste_buffer[i - col] = text->storage[row][i];
 		}
 		paste_buffer[length] = '\0';
 
-		for (int i = col; i <= strlen(text_storage->text[row]) - length; i++) {
-			text_storage->text[row][i] = text_storage->text[row][i + length];
+		for (int i = col; i <= strlen(text->storage[row]) - length; i++) {
+			text->storage[row][i] = text->storage[row][i + length];
 		}
 		cout << "Text cut successfully" << endl;
 	}
 
-	void copy_text(Cursor* cursor) {
+	void CopyText(Cursor* cursor) {
 		int row = 0, col = 0, length = 0;
-		get_input(cursor, "copy", row, col, length);
+		_GetInput(cursor, "copy", row, col, length);
 		if (row == -1) return;
-		add_undo(cursor);
+		_AddUndo(cursor);
 		for (int i = col; i < col + length; i++) {
-			paste_buffer[i - col] = text_storage->text[row][i];
+			paste_buffer[i - col] = text->storage[row][i];
 		}
 		paste_buffer[length] = '\0';
 		cout << "Text copied successfully" << endl;
 	}
 
-	void paste_text(Cursor* cursor) {
+	void PasteText(Cursor* cursor) {
 		if (paste_buffer[0] == '\0') {
 			cerr << "The buffer is empty" << endl;
 			return;
 		}
 		int row = cursor->row;
 		int col = cursor->col;
-		if (col + strlen(paste_buffer) >= text_storage->cols - 1) {
+		if (col + strlen(paste_buffer) >= text->cols - 1) {
 			cerr << "The length is out of range" << endl;
 			return;
 		}
-		add_undo(cursor);
-		text_storage->shift_right(row, col, (int)strlen(paste_buffer));
+		_AddUndo(cursor);
+		text->ShiftRight(row, col, (int)strlen(paste_buffer));
 		for (int i = 0; i < (int)strlen(paste_buffer); i++) {
-			text_storage->text[row][col + i] = paste_buffer[i];
+			text->storage[row][col + i] = paste_buffer[i];
 		}
 		cout << "Text pasted successfully" << endl;
 	}
 
-	void insert_and_replace(Cursor* cursor) {
+	void InsertAndReplace(Cursor* cursor) {
 		int row = cursor->row;
 		int col = cursor->col;
 		char entered_text[64];
@@ -454,16 +454,16 @@ public:
 		cin.ignore();
 		cin.getline(entered_text, 256);
 		entered_text[cin.gcount()] = '\0';
-		add_undo(cursor);
+		_AddUndo(cursor);
 		for (int i = 0; i < (int)strlen(entered_text); i++) {
-			text_storage->text[row][col + i] = entered_text[i];
+			text->storage[row][col + i] = entered_text[i];
 		}
 	}
 
-	void undo_command(Cursor* cursor) {
+	void Undo(Cursor* cursor) {
 		if (undo1) {
-			add_redo(cursor);
-			restore_buffer(cursor, undo1);
+			_AddRedo(cursor);
+			_RestoreBuffer(cursor, undo1);
 			undo1 = undo2;
 			undo2 = undo3;
 			undo3 = nullptr;
@@ -473,9 +473,9 @@ public:
 		}
 	}
 
-	void redo_command(Cursor* cursor) {
+	void Redo(Cursor* cursor) {
 		if (redo1) {
-			restore_buffer(cursor, redo1);
+			_RestoreBuffer(cursor, redo1);
 			redo1 = redo2;
 			redo2 = redo3;
 			redo3 = nullptr;
@@ -485,7 +485,7 @@ public:
 		}
 	}
 
-	void clear_console() {
+	void ClearConsole() {
 #ifdef _WIN64
 		system("cls");
 #else
@@ -496,8 +496,8 @@ public:
 
 void Cursor::MoveCursor(TextEditor* editor) {
 	int new_row, new_col;
-	int total_rows = editor->get_rows();
-	char** text = editor->get_text();
+	int total_rows = editor->GetRows();
+	char** text = editor->GetText();
 	cout << "Enter the row and column to move cursor: ";
 	cin >> new_row >> new_col;
 	if (new_row > total_rows) {
@@ -548,20 +548,11 @@ private:
 
 public:
 
-	void EncryptText(TextEditor* editor, int key) {
+	void EncryptDecryptText(TextEditor* editor, function func, int key) {
 		_LoadLibrary();
-		char** text = editor->get_text();
-		for (int i = 0; i <= editor->get_rows(); i++) {
-			text[i] = encrypt(text[i], key);
-		}
-		_UnloadLibrary();
-	}
-
-	void DecryptText(TextEditor* editor, int key) {
-		_LoadLibrary();
-		char** text = editor->get_text();
-		for (int i = 0; i <= editor->get_rows(); i++) {
-			text[i] = decrypt(text[i], key);
+		char** text = editor->GetText();
+		for (int i = 0; i <= editor->GetRows(); i++) {
+			text[i] = func(text[i], key);
 		}
 		_UnloadLibrary();
 	}
@@ -607,23 +598,23 @@ public:
 		cin >> command;
 		cout << "Enter key: " << endl;
 		cin >> key;
+		_LoadLibrary();
 		switch (command) {
 		case 1:
-			EncryptText(editor, key);
+			EncryptDecryptText(editor, encrypt, key);
 			break;
 		case 2:
-			DecryptText(editor, key);
+			EncryptDecryptText(editor, decrypt, key);
 			break;
 		case 3:
-			_LoadLibrary();
 			EncryptDecryptFile(encrypt, key);
 			break;
 		case 4:
-			_LoadLibrary();
 			EncryptDecryptFile(decrypt, key);
 			break;
 		default:
 			cout << "Command not found" << endl;
+			_UnloadLibrary();
 			break;
 		}
 	}
@@ -639,58 +630,58 @@ int main() {
 		cin >> input;
 		switch (input) {
 		case 1:
-			editor->append_text(cursor);
+			editor->AppendText(cursor);
 			break;
 		case 2:
-			editor->start_newline(cursor);
+			editor->StartNewline(cursor);
 			break;
 		case 3:
-			editor->save_file();
+			editor->SaveFile();
 			break;
 		case 4:
-			editor->load_file(cursor);
+			editor->LoadFile(cursor);
 			break;
 		case 5:
-			editor->print_text();
+			editor->PrintText();
 			break;
 		case 6:
-			editor->insert_text(cursor);
+			editor->InsertText(cursor);
 			break;
 		case 7:
-			editor->search_text();
+			editor->SearchText();
 			break;
 		case 8:
-			editor->delete_text(cursor);
+			editor->DeleteText(cursor);
 			break;
 		case 9:
-			editor->undo_command(cursor);
+			editor->Undo(cursor);
 			break;
 		case 10:
-			editor->redo_command(cursor);
+			editor->Redo(cursor);
 			break;
 		case 11:
-			editor->cut_text(cursor);
+			editor->CutText(cursor);
 			break;
 		case 12:
-			editor->copy_text(cursor);
+			editor->CopyText(cursor);
 			break;
 		case 13:
-			editor->paste_text(cursor);
+			editor->PasteText(cursor);
 			break;
 		case 14:
-			editor->insert_and_replace(cursor);
+			editor->InsertAndReplace(cursor);
 			break;
 		case 15:
 			cursor->MoveCursor(editor);
 			break;
 		case 16:
-			editor->clear_console();
+			editor->ClearConsole();
 			break;
 		case 17:
 			cipher->GetCommand(editor);
 			break;
 		case 18:
-			editor->print_help();
+			editor->PrintHelp();
 			break;
 		case 0:
 			delete editor;
