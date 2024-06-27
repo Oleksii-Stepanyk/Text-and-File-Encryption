@@ -590,6 +590,7 @@ public:
 	void GetCommand(TextEditor* editor) {
 		int command;
 		int key;
+		int err;
 		cout << "1. Encrypt" << endl;
 		cout << "2. Decrypt" << endl;
 		cout << "3. Encrypt file" << endl;
@@ -598,7 +599,8 @@ public:
 		cin >> command;
 		cout << "Enter key: " << endl;
 		cin >> key;
-		_LoadLibrary();
+		err = _LoadLibrary();
+		if (err != 0) return;
 		switch (command) {
 		case 1:
 			EncryptDecryptText(editor, encrypt, key);
